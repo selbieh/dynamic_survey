@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=postgres_db
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres_user -d postgres_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: ADSP-redis
+    image: redis:alpine
+
+  backend:
+    container_name: ADSP-backend
+    image: adsp-backend-image:latest
+    build: .
+#    volumes:
+#      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+
+  celery:
+    container_name: ADSP-celery
+    image: adsp-backend-image:latest
+    command: celery -A config worker --loglevel=info
+    depends_on:
+      - redis
+      - backend
+    env_file:
+      - .env
+
+volumes:
+  postgres_data:
